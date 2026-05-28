@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>mini-kh-OCR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Hanuman:wght@300;400;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ── Reset & base ─────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0e0f11;
+    --surface:   #16181c;
+    --border:    #2a2d34;
+    --accent:    #e8c97a;
+    --accent2:   #6fcfb0;
+    --accent3:   #c97a9e;
+    --text:      #e8e6e1;
+    --muted:     #6b7080;
+    --subject:   #e8c97a;
+    --reference: #6fcfb0;
+    --content:   #a0b4d8;
+    --font-kh:   'Hanuman', serif;
+    --font-mono: 'DM Mono', monospace;
+    --radius:    12px;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-kh); }
+
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  .shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: -60px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(232,201,122,.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .logo-mark {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: var(--bg);
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+  }
+  .logo-text h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo-text p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .status-pill {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-pill .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background .3s;
+  }
+  .status-pill.ready .dot { background: var(--accent2); }
+  .status-pill.ready { color: var(--accent2); border-color: rgba(111,207,176,.3); }
+
+  /* ── Main grid ────────────────────────────────────────────────────── */
+  main {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 0;
+    height: 100%;
+  }
+
+  /* ── Left panel ───────────────────────────────────────────────────── */
+  .panel-left {
+    border-right: 1px solid var(--border);
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── Drop zone ────────────────────────────────────────────────────── */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+    background: transparent;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(232,201,122,.04);
+  }
+  .dropzone input[type=file] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .dropzone-icon {
+    font-size: 36px; margin-bottom: 12px; display: block;
+  }
+  .dropzone-title {
+    font-size: 15px; font-weight: 700; margin-bottom: 6px;
+  }
+  .dropzone-sub {
+    font-size: 12px; color: var(--muted);
+  }
+  .dropzone-sub span {
+    background: var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    margin: 0 2px;
+  }
+
+  /* ── Preview ──────────────────────────────────────────────────────── */
+  .preview-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .preview-wrap.show { display: flex; }
+  .preview-img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    object-fit: contain;
+    max-height: 220px;
+    background: #0a0b0d;
+  }
+  .preview-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Submit button ────────────────────────────────────────────────── */
+  .btn-run {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-kh);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-run:hover   { opacity: .9; }
+  .btn-run:active  { transform: scale(.98); }
+  .btn-run:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-run .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,.3);
+    border-top-color: var(--bg);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  .btn-run.loading .spinner { display: block; }
+  .btn-run.loading .btn-label { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Legend ───────────────────────────────────────────────────────── */
+  .legend { display: flex; flex-direction: column; gap: 8px; }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .legend-id {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    min-width: 16px;
+  }
+  .legend-km { font-weight: 700; }
+  .legend-en { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+  /* ── Right panel ──────────────────────────────────────────────────── */
+  .panel-right {
+    padding: 32px 36px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* ── Empty state ──────────────────────────────────────────────────── */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    gap: 12px;
+    text-align: center;
+  }
+  .empty-state svg { opacity: .25; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── Result header ────────────────────────────────────────────────── */
+  .result-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .result-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .result-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* ── Page tabs (PDF) ──────────────────────────────────────────────── */
+  .page-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .page-tab {
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--muted);
+    transition: all .15s;
+  }
+  .page-tab.active {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  /* ── Category cards ───────────────────────────────────────────────── */
+  .category-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cat-card {
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    overflow: hidden;
+    animation: fadeUp .3s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .cat-card:nth-child(1) { animation-delay: .05s; }
+  .cat-card:nth-child(2) { animation-delay: .10s; }
+  .cat-card:nth-child(3) { animation-delay: .15s; }
+
+  .cat-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cat-color { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .cat-km    { font-weight: 700; font-size: 15px; }
+  .cat-en    { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .cat-count {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: var(--muted);
+  }
+
+  .cat-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+
+  .text-item {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 15px;
+    line-height: 1.7;
+    border-left: 3px solid transparent;
+    position: relative;
+  }
+  .text-item.subject-item   { border-left-color: var(--subject); }
+  .text-item.reference-item { border-left-color: var(--reference); }
+  .text-item.content-item   { border-left-color: var(--content); }
+
+  .text-item .conf-badge {
+    position: absolute;
+    top: 8px; right: 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .no-text {
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+    padding: 4px 0;
+  }
+
+  /* ── Regions raw table ────────────────────────────────────────────── */
+  .toggle-raw {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s;
+    align-self: flex-start;
+  }
+  .toggle-raw:hover { color: var(--text); }
+
+  .raw-table {
+    display: none;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .raw-table.show { display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th {
+    background: var(--surface);
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .cls-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--bg);
+  }
+  .cls-pill.subject   { color: var(--subject);   border: 1px solid rgba(232,201,122,.3); }
+  .cls-pill.reference { color: var(--reference); border: 1px solid rgba(111,207,176,.3); }
+  .cls-pill.content   { color: var(--content);   border: 1px solid rgba(160,180,216,.3); }
+
+  /* ── Error ────────────────────────────────────────────────────────── */
+  .error-box {
+    background: rgba(201,122,122,.08);
+    border: 1px solid rgba(201,122,122,.3);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    color: #e8a0a0;
+    font-size: 13px;
+  }
+
+  /* ── Scrollbar ────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Responsive ───────────────────────────────────────────────────── */
+  @media (max-width: 820px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .panel-left { border-right: none; border-bottom: 1px solid var(--border); }
+    header { padding: 16px 20px; }
+    .panel-left, .panel-right { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header>
+    <div class="logo-mark">OCR</div>
+    <div class="logo-text">
+      <h1>mini-kh-OCR</h1>
+      <p>Khmer Document Text Extraction</p>
+    </div>
+    <div class="status-pill" id="statusPill">
+      <span class="dot"></span>
+      <span id="statusText">Checking...</span>
+    </div>
+  </header>
+
+  <!-- ── Main ────────────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- Left panel -->
+    <div class="panel-left">
+
+      <!-- Upload -->
+      <div>
+        <div class="section-label">Upload Document</div>
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.pdf" />
+          <span class="dropzone-icon">📄</span>
+          <div class="dropzone-title">ទម្លាក់ឯកសារនៅទីនេះ</div>
+          <div class="dropzone-sub">
+            ឬចុចដើម្បីជ្រើសរើស
+            <span>JPG</span><span>PNG</span><span>PDF</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-wrap" id="previewWrap">
+        <div class="section-label">Preview</div>
+        <img class="preview-img" id="previewImg" src="" alt="" />
+        <div class="preview-name" id="previewName"></div>
+      </div>
+
+      <!-- Run button -->
+      <button class="btn-run" id="btnRun" disabled>
+        <div class="spinner"></div>
+        <span class="btn-label">ដំណើរការ OCR</span>
+      </button>
+
+      <!-- Legend -->
+      <div>
+        <div class="section-label">ប្រភេទអត្ថបទ</div>
+        <div class="legend">
+          <div class="legend-row">
+            <div class="legend-dot" style="background:var(--subject)"></div>
+            <span class="legend-id">0</span>
+            <span class="legend-km">កម្មវត្ថុ</span>
+            <span class="legend-en">subject</span>
+          </div>
+          <div class="legend-row">
+            <div class="legend-dot" style="background:var(--reference)"></div>
+            <span class="legend-id">1</span>
+            <span class="legend-km">យោង</span>
+            <span class="legend-en">reference</span>
+          </div>
+          <div class="legend-row">
+            <div class="legend-dot" style="background:var(--content)"></div>
+            <span class="legend-id">2</span>
+            <span class="legend-km">អត្ថបទ</span>
+            <span class="legend-en">content</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /panel-left -->
+
+    <!-- Right panel -->
+    <div class="panel-right" id="panelRight">
+      <div class="empty-state" id="emptyState">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <rect x="12" y="8"  width="40" height="48" rx="4" stroke="#6b7080" stroke-width="2"/>
+          <line x1="20" y1="20" x2="44" y2="20" stroke="#6b7080" stroke-width="2" stroke-linecap="round"/>
+          <line x1="20" y1="28" x2="44" y2="28" stroke="#6b7080" stroke-width="2" stroke-linecap="round"/>
+          <line x1="20" y1="36" x2="36" y2="36" stroke="#6b7080" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <p>Upload an image or PDF to begin</p>
+      </div>
+      <div id="resultArea" style="display:none; display:flex; flex-direction:column; gap:24px;"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let selectedFile = null;
+let currentPages = [];
+let currentPage  = 0;
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const dropzone    = document.getElementById('dropzone');
+const fileInput   = document.getElementById('fileInput');
+const previewWrap = document.getElementById('previewWrap');
+const previewImg  = document.getElementById('previewImg');
+const previewName = document.getElementById('previewName');
+const btnRun      = document.getElementById('btnRun');
+const emptyState  = document.getElementById('emptyState');
+const resultArea  = document.getElementById('resultArea');
+const statusPill  = document.getElementById('statusPill');
+const statusText  = document.getElementById('statusText');
+
+// ── Health check ──────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch('/health');
+    if (r.ok) {
+      statusPill.classList.add('ready');
+      statusText.textContent = 'Models Ready';
+    } else { throw new Error(); }
+  } catch {
+    statusText.textContent = 'Offline';
+  }
+}
+checkHealth();
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  selectedFile = file;
+  previewName.textContent = file.name;
+
+  if (file.type.startsWith('image/')) {
+    const url = URL.createObjectURL(file);
+    previewImg.src = url;
+    previewImg.style.display = 'block';
+  } else {
+    previewImg.style.display = 'none';
+  }
+
+  previewWrap.classList.add('show');
+  btnRun.disabled = false;
+  resultArea.style.display = 'none';
+  emptyState.style.display = 'flex';
+  resultArea.innerHTML = '';
+  currentPages = []; currentPage = 0;
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+btnRun.addEventListener('click', async () => {
+  if (!selectedFile) return;
+
+  btnRun.classList.add('loading');
+  btnRun.disabled = true;
+  emptyState.style.display = 'none';
+  resultArea.style.display = 'flex';
+  resultArea.innerHTML = '<div style="color:var(--muted);font-size:13px;">Processing...</div>';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  try {
+    const res  = await fetch('/process', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || 'Server error');
+    renderResult(data);
+
+  } catch (err) {
+    resultArea.innerHTML = `<div class="error-box">❌ ${err.message}</div>`;
+  } finally {
+    btnRun.classList.remove('loading');
+    btnRun.disabled = false;
+  }
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderResult(data) {
+  resultArea.innerHTML = '';
+
+  if (data.type === 'pdf') {
+    currentPages = data.results;
+    currentPage  = 0;
+    renderPdfHeader(data.pages);
+    renderPage(currentPages[0]);
+  } else {
+    renderPageContent(data);
+  }
+}
+
+function renderPdfHeader(totalPages) {
+  // meta row
+  const meta = document.createElement('div');
+  meta.className = 'result-meta';
+  meta.innerHTML = `
+    <span class="result-title">លទ្ធផល OCR</span>
+    <span class="result-badge">PDF · ${totalPages} pages</span>
+  `;
+  resultArea.appendChild(meta);
+
+  // tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'page-tabs';
+  tabs.id = 'pageTabs';
+  for (let i = 0; i < totalPages; i++) {
+    const t = document.createElement('button');
+    t.className = 'page-tab' + (i === 0 ? ' active' : '');
+    t.textContent = `Page ${i + 1}`;
+    t.addEventListener('click', () => {
+      currentPage = i;
+      document.querySelectorAll('.page-tab').forEach((el, idx) => el.classList.toggle('active', idx === i));
+      const pageContent = document.getElementById('pageContent');
+      if (pageContent) pageContent.remove();
+      renderPage(currentPages[i]);
+    });
+    tabs.appendChild(t);
+  }
+  resultArea.appendChild(tabs);
+}
+
+function renderPage(pageData) {
+  const wrap = document.createElement('div');
+  wrap.id = 'pageContent';
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '24px';
+  renderPageContent(pageData, wrap);
+  resultArea.appendChild(wrap);
+}
+
+function renderPageContent(data, container = resultArea) {
+  // meta (image only)
+  if (data.type === 'image') {
+    const meta = document.createElement('div');
+    meta.className = 'result-meta';
+    meta.innerHTML = `
+      <span class="result-title">លទ្ធផល OCR</span>
+      <span class="result-badge">${data.regions?.length ?? 0} regions</span>
+    `;
+    container.appendChild(meta);
+  }
+
+  // category cards
+  const classes = [
+    { key: 'subject',   km: 'កម្មវត្ថុ',  en: 'subject',   color: 'var(--subject)',   id: 0 },
+    { key: 'reference', km: 'យោង',        en: 'reference', color: 'var(--reference)', id: 1 },
+    { key: 'content',   km: 'អត្ថបទ',     en: 'content',   color: 'var(--content)',   id: 2 },
+  ];
+
+  const grid = document.createElement('div');
+  grid.className = 'category-grid';
+
+  classes.forEach(cls => {
+    const texts   = data[cls.key] || [];
+    const regions = (data.regions || []).filter(r => r.class_en === cls.key);
+
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.innerHTML = `
+      <div class="cat-header">
+        <div class="cat-color" style="background:${cls.color}"></div>
+        <span class="cat-km">${cls.km}</span>
+        <span class="cat-en">${cls.en}</span>
+        <span class="cat-id" style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:6px;">ID ${cls.id}</span>
+        <span class="cat-count">${texts.length}</span>
+      </div>
+      <div class="cat-body" id="body-${cls.key}"></div>
+    `;
+    grid.appendChild(card);
+
+    const body = card.querySelector(`#body-${cls.key}`);
+    if (texts.length === 0) {
+      body.innerHTML = '<div class="no-text">មិនរកឃើញ</div>';
+    } else {
+      texts.forEach((text, i) => {
+        const conf = regions[i] ? (regions[i].conf * 100).toFixed(0) + '%' : '';
+        const item = document.createElement('div');
+        item.className = `text-item ${cls.key}-item`;
+        item.innerHTML = `
+          ${text || '<em style="color:var(--muted)">—</em>'}
+          ${conf ? `<span class="conf-badge">${conf}</span>` : ''}
+        `;
+        body.appendChild(item);
+      });
+    }
+  });
+
+  container.appendChild(grid);
+
+  // raw detections toggle
+  if (data.regions && data.regions.length > 0) {
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'toggle-raw';
+    toggleBtn.textContent = 'Show Raw Detections';
+
+    const table = document.createElement('div');
+    table.className = 'raw-table';
+    table.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Class</th>
+            <th>Khmer</th>
+            <th>Conf</th>
+            <th>Box</th>
+            <th>Text</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.regions.map((r, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td><span class="cls-pill ${r.class_en}">${r.class_en}</span></td>
+              <td>${r.class_km}</td>
+              <td>${(r.conf * 100).toFixed(0)}%</td>
+              <td style="color:var(--muted)">${r.box.x1},${r.box.y1} → ${r.box.x2},${r.box.y2}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.text}">${r.text || '—'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = table.classList.toggle('show');
+      toggleBtn.textContent = isOpen ? 'Hide Raw Detections' : 'Show Raw Detections';
+    });
+
+    container.appendChild(toggleBtn);
+    container.appendChild(table);
+  }
+}
+</script>
+</body>
+</html>

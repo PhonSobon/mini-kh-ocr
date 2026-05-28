@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+ultralytics
+torch
+torchvision
+pillow
+numpy
+pdf2image
+python-dotenv
