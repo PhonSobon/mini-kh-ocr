@@ -1,6 +1,6 @@
 # mini-kh-OCR API
 
-### Mini-KH-OCR is tool power ai that can extract text from images and pdf that supporting with documents that have subject and reference that using **YOLO11n** for text detection and **CRNN+LSTM+CTC** for text recognition។
+Mini-KH-OCR is tool power ai that can extract text from images and pdf that supporting with documents that have subject and reference that using **YOLO11n** for text detection and **CRNN+LSTM+CTC** for text recognition។
 
 ---
 
