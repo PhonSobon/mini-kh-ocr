@@ -52,7 +52,8 @@ cd mini-kh-OCR
 pip install -r requirements.txt
 ```
 
-### 3. Install Poppler (for PDF support)
+### 3. Install Poppler (for PDF support) 
+#### Noted: If your want to run with pdf file but your computer have scurity admin. So you can install it but you just want to know about process extract need to use with images
 
 **Windows**
 - Download from: https://github.com/oschwartz10612/poppler-windows/releases
